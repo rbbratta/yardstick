@@ -13,7 +13,6 @@ from __future__ import print_function
 import collections
 import logging
 import os
-import sys
 import uuid
 
 import paramiko
@@ -223,11 +222,8 @@ class HeatContext(Context):
         try:
             self.stack = heat_template.create()
         except KeyboardInterrupt:
-            sys.exit("\nStack create interrupted")
-        except RuntimeError as err:
-            sys.exit("error: failed to deploy stack: '%s'" % err.args)
-        except Exception as err:
-            sys.exit("error: failed to deploy stack: '%s'" % err)
+            raise SystemExit("\nStack create interrupted")
+        # let the other failures happend, we want stack trace
 
         # copy some vital stack output into server objects
         for server in self.servers:
