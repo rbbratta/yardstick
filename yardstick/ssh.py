@@ -147,12 +147,13 @@ class SSH(object):
                                  allow_agent=False, look_for_keys=False,
                                  timeout=1)
             return self._client
-        except Exception as e:
-            message = ("Exception %(exception_type)s was raised "
-                       "during connect. Exception value is: %(exception)r")
+        except Exception:
+            # message = ("Exception %(exception_type)s was raised "
+            #            "during connect. Exception value is: %(exception)r")
             self._client = False
-            raise SSHError(message % {"exception": e,
-                                      "exception_type": type(e)})
+            raise
+            # raise SSHError(message % {"exception": e,
+            #                           "exception_type": type(e)})
 
     def close(self):
         self._client.close()
@@ -294,8 +295,8 @@ class SSH(object):
         while True:
             try:
                 return self.execute("uname")
-            except (socket.error, SSHError) as e:
-                self.log.debug("Ssh is still unavailable: %r", e)
+            except (socket.error, SSHError):
+                self.log.debug("Ssh is still unavailable:", exc_info=True)
                 time.sleep(interval)
             if time.time() > (start_time + timeout):
                 raise SSHTimeout("Timeout waiting for '%s'", self.host)
