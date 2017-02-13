@@ -24,3 +24,10 @@ class HeatContextTestCase(unittest.TestCase):
         k = heat.get_short_key_uuid(u)
         self.assertEqual(heat.HEAT_KEY_UUID_LENGTH, len(k))
         self.assertIn(k, str(u))
+
+
+class HeatTemplateTestCase(unittest.TestCase):
+
+    def test_init_template(self):
+        h = heat.HeatTemplate("test")
+        assert h._template == {}
