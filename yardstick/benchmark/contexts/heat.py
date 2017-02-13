@@ -83,11 +83,11 @@ class HeatContext(Context):
                               for name, sgattrs in attrs.get(
                               "server_groups", {}).items()]
 
-        for name, netattrs in attrs["networks"].items():
-            network = Network(name, self, netattrs)
-            self.networks.append(network)
+        for name, netattrs in sorted(attrs["networks"].items()):
+            LOG.debug("network %s", name)
+            self.networks.append(Network(name, self, netattrs))
 
-        for name, serverattrs in attrs["servers"].items():
+        for name, serverattrs in sorted(attrs["servers"].items()):
             server = Server(name, self, serverattrs)
             self.servers.append(server)
             self._server_map[server.dn] = server
