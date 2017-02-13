@@ -98,7 +98,7 @@ class HeatContext(Context):
         self.networks = [Network(name, self, netattrs) for name, netattrs in
                          sorted(attrs["networks"].items())]
 
-        for name, serverattrs in attrs["servers"].items():
+        for name, serverattrs in sorted(attrs["servers"].items()):
             server = Server(name, self, serverattrs)
             self.servers.append(server)
             self._server_map[server.dn] = server
