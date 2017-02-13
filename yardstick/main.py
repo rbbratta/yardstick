@@ -41,6 +41,10 @@
 from __future__ import absolute_import
 import sys
 
+print(sys.path)
+del sys.path[0]
+print(sys.path)
+
 from yardstick.cmd.cli import YardstickCLI
 
 
