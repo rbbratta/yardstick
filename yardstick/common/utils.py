@@ -26,6 +26,7 @@ import sys
 from functools import reduce
 
 import yaml
+from six.moves import configparser
 from oslo_utils import importutils
 from oslo_serialization import jsonutils
 
@@ -146,3 +147,19 @@ def write_json_to_file(path, data, mode='w'):
 def write_file(path, data, mode='w'):
     with open(path, mode) as f:
         f.write(data)
+
+
+def parse_ini_file(path):
+    parser = configparser.ConfigParser()
+    parser.read(path)
+
+    config = {}
+    try:
+        config['DEFAULT'] = {k: v for k, v in parser.items('DEFAULT')}
+    except configparser.NoSectionError:
+        config['DEFAULT'] = {}
+
+    conf = {s: {k: v for k, v in parser.items(s)} for s in parser.sections()}
+    config.update(conf)
+
+    return config
