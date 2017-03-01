@@ -285,6 +285,18 @@ name (i.e. %s).\
             'description': 'Address for interface %s' % name,
             'value': {'get_attr': [name, 'fixed_ips', 0, 'ip_address']}
         }
+        self._template['outputs'][name + "-mac_address"] = {
+            'description': 'MAC Address for interface %s' % name,
+            'value': {'get_attr': [name, 'mac_address']}
+        }
+        self._template['outputs'][name + "-device_id"] = {
+            'description': 'Device ID for interface %s' % name,
+            'value': {'get_attr': [name, 'device_id']}
+        }
+        self._template['outputs'][name + "-network_id"] = {
+            'description': 'Network ID for interface %s' % name,
+            'value': {'get_attr': [name, 'network_id']}
+        }
 
     def add_floating_ip(self, name, network_name, port_name, router_if_name,
                         secgroup_name=None):

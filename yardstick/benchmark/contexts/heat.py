@@ -245,6 +245,18 @@ class HeatContext(Context):
                 # TODO(hafe) can only handle one internal network for now
                 port = next(iter(server.ports.values()))
                 server.private_ip = self.stack.outputs[port["stack_name"]]
+                server.interfaces = {}
+                for network_name, port in server.ports.items():
+                    server.interfaces[network_name] = {
+                        "private_ip": self.stack.outputs[port["stack_name"]],
+                        "mac_address": self.stack.outputs[
+                            port["stack_name"] + "-mac_address"],
+                        "device_id": self.stack.outputs[
+                            port["stack_name"] + "-device_id"],
+                        "network_id": self.stack.outputs[
+                            port["stack_name"] + "-network_id"],
+                        "network_name": network_name,
+                    }
 
             if server.floating_ip:
                 server.public_ip = \
@@ -306,7 +318,8 @@ class HeatContext(Context):
         result = {
             "user": server.context.user,
             "key_filename": key_filename,
-            "private_ip": server.private_ip
+            "private_ip": server.private_ip,
+            "interfaces": server.interfaces,
         }
         # Target server may only have private_ip
         if server.public_ip:
