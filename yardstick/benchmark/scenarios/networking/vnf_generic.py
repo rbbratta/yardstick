@@ -231,14 +231,14 @@ class NetworkServiceTestCase(base.Scenario):
                 if exit_status != 0:
                     raise IncorrectSetup("Node's %s lacks ip tool." % node)
 
-                for network in node_dict["interfaces"].values():
-                    keys = {"vpci", "local_ip", "netmask",
-                            "local_mac", "driver", "dpdk_port_num"}
-                    missing = keys.difference(network)
-                    if missing:
-                        raise IncorrectConfig("Require interface fields '%s' "
-                                              "not found, topology file "
-                                              "corrupted" % ', '.join(missing))
+                # for network in node_dict["interfaces"].values():
+                #     keys = {"vpci", "local_ip", "netmask",
+                #             "local_mac", "driver", "dpdk_port_num"}
+                #     missing = keys.difference(network)
+                #     if missing:
+                #         raise IncorrectConfig("Require interface fields '%s' "
+                #                               "not found, topology file "
+                #                               "corrupted" % ', '.join(missing))
 
         # 3. Use topology file to find connections & resolve dest address
         self._resolve_topology(context_cfg, topology)
