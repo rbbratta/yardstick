@@ -234,6 +234,9 @@ class HeatContext(Context):
             self.stack = heat_template.create()
         except KeyboardInterrupt:
             raise SystemExit("\nStack create interrupted")
+        except:
+            LOG.exception("stack failed")
+            raise
         # let the other failures happend, we want stack trace
 
         # copy some vital stack output into server objects
