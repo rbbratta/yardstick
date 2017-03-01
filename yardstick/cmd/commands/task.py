@@ -11,6 +11,8 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
+import logging
+
 from yardstick.benchmark.core.task import Task
 from yardstick.common.utils import cliargs
 from yardstick.common.utils import write_json_to_file
@@ -18,6 +20,9 @@ from yardstick.common.utils import read_json_from_file
 from yardstick.cmd.commands import change_osloobj_to_paras
 
 output_file_default = "/tmp/yardstick.out"
+
+
+LOG = logging.getLogger(__name__)
 
 
 class TaskCommands(object):
@@ -53,6 +58,8 @@ class TaskCommands(object):
             self._finish()
         except Exception as e:
             self._write_error_data(e)
+            LOG.exception("")
+
 
     def _init_result_file(self):
         data = {'status': 0, 'result': []}
