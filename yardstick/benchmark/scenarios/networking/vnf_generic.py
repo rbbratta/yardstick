@@ -275,7 +275,9 @@ class NetworkServiceTestCase(base.Scenario):
             with open_relative_file(node["VNF model"],
                                     scenario_cfg['task_path']) as stream:
                 vnf_model = stream.read()
-            vnfd = vnfdgen.generate_vnfd(vnf_model, context_cfg["nodes"][node])
+            # quick hack for password
+            node.setdefault("password", "")
+            vnfd = vnfdgen.generate_vnfd(vnf_model, node)
             vnf_impl = self.get_vnf_impl(vnfd["vnfd:vnfd-catalog"]["vnfd"][0])
             vnf_instance = vnf_impl(vnfd["vnfd:vnfd-catalog"]["vnfd"][0])
             vnf_instance.name = node
