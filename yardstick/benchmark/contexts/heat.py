@@ -14,6 +14,7 @@ import collections
 import logging
 import os
 import uuid
+from collections import OrderedDict
 
 import paramiko
 import pkg_resources
@@ -37,7 +38,7 @@ class HeatContext(Context):
     def __init__(self):
         self.name = None
         self.stack = None
-        self.networks = []
+        self.networks = OrderedDict()
         self.servers = []
         self.placement_groups = []
         self.server_groups = []
@@ -66,6 +67,7 @@ class HeatContext(Context):
         # no external net defined, assign it to first network usig os.environ
         if sorted_networks and not have_external_network:
             sorted_networks[0][1]["external_network"] = external_network
+        return sorted_networks
 
     def init(self, attrs):     # pragma: no cover
         """initializes itself from the supplied arguments"""
@@ -93,10 +95,13 @@ class HeatContext(Context):
                               for name, sgattrs in attrs.get(
                               "server_groups", {}).items()]
 
-        self.assign_external_network(attrs["networks"])
+        # we have to do this first, because we are injecting external_network
+        # into the dict
+        sorted_networks = self.assign_external_network(attrs["networks"])
 
-        self.networks = [Network(name, self, netattrs) for name, netattrs in
-                         sorted(attrs["networks"].items())]
+        self.networks = OrderedDict(
+            (name, Network(name, self, netattrs)) for name, netattrs in
+            sorted_networks)
 
         for name, serverattrs in sorted(attrs["servers"].items()):
             server = Server(name, self, serverattrs)
@@ -131,7 +136,7 @@ class HeatContext(Context):
         template.add_keypair(self.keypair_name, self.key_uuid)
         template.add_security_group(self.secgroup_name)
 
-        for network in self.networks:
+        for network in self.networks.values():
             template.add_network(network.stack_name)
             template.add_subnet(network.subnet_stack_name, network.stack_name,
                                 network.subnet_cidr)
@@ -172,17 +177,17 @@ class HeatContext(Context):
                 if not scheduler_hints["different_host"]:
                     scheduler_hints.pop("different_host", None)
                     server.add_to_template(template,
-                                           self.networks,
+                                           list(self.networks.values()),
                                            scheduler_hints)
                 else:
                     scheduler_hints["different_host"] = \
                         scheduler_hints["different_host"][0]
                     server.add_to_template(template,
-                                           self.networks,
+                                           list(self.networks.values()),
                                            scheduler_hints)
             else:
                 server.add_to_template(template,
-                                       self.networks,
+                                       list(self.networks.values()),
                                        scheduler_hints)
             added_servers.append(server.stack_name)
 
@@ -201,7 +206,8 @@ class HeatContext(Context):
             scheduler_hints = {}
             for pg in server.placement_groups:
                 update_scheduler_hints(scheduler_hints, added_servers, pg)
-            server.add_to_template(template, self.networks, scheduler_hints)
+            server.add_to_template(template, list(self.networks.values()),
+                                   scheduler_hints)
             added_servers.append(server.stack_name)
 
         # add server group
@@ -218,7 +224,8 @@ class HeatContext(Context):
                 if sg:
                     scheduler_hints["group"] = {'get_resource': sg.name}
                 server.add_to_template(template,
-                                       self.networks, scheduler_hints)
+                                       list(self.networks.values()),
+                                       scheduler_hints)
 
     def deploy(self):
         """deploys template into a stack using cloud"""
