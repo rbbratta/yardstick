@@ -40,9 +40,9 @@ context:
 #  nfvi_type: baremetal
 #  file: /etc/yardstick/nodes/pod.yaml
   name: yardstick
-  image: cirros-0.3.3
+  image: yardstick-image
   flavor: yardstick-flavor
-  user: cirros
+  user: ubuntu
 
   placement_groups:
     pgrp1:
