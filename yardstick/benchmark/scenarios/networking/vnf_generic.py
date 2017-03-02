@@ -80,6 +80,17 @@ class SshManager(object):
             self.conn.close()
 
 
+def open_relative_file(path, task_path):
+    # fixme: create schema to validate all fields have been provided
+    try:
+        return open(path)
+    except IOError as e:
+        if e.errno != errno.ENOENT:
+            raise
+        else:
+            return open(os.path.join(task_path, path))
+
+
 class NetworkServiceTestCase(base.Scenario):
     """Class handles Generic framework to do pre-deployment VNF &
        Network service testing  """
@@ -91,26 +102,14 @@ class NetworkServiceTestCase(base.Scenario):
         self.scenario_cfg = scenario_cfg
         self.context_cfg = context_cfg
 
-        topology_yaml = self.load_relative_yaml(scenario_cfg["topology"],
-                                                scenario_cfg['task_path'])
+        with open_relative_file(scenario_cfg["topology"],
+                                scenario_cfg['task_path']) as stream:
+            topology_yaml = yaml.load(stream)
         self.topology = topology_yaml["nsd:nsd-catalog"]["nsd"][0]
 
         self.vnfs = []
         self.collector = None
         self.traffic_profile = None
-
-    def load_relative_yaml(self, yaml_path, task_path):
-        # fixme: create schema to validate all fields have been provided
-        try:
-            with open(yaml_path) as stream:
-                return yaml.load(stream)
-        except IOError as e:
-            if e.errno != errno.ENOENT:
-                raise
-            else:
-                with open(os.path.join(task_path,
-                                       yaml_path)) as stream:
-                    return yaml.load(stream)
 
     @classmethod
     def _get_traffic_flow(cls, scenario_cfg):
@@ -136,7 +135,8 @@ class NetworkServiceTestCase(base.Scenario):
         private = {}
         public = {}
         try:
-            with open(scenario_cfg["traffic_profile"]) as infile:
+            with open_relative_file(scenario_cfg["traffic_profile"],
+                                    scenario_cfg["task_path"]) as infile:
                 traffic_profile_tpl = infile.read()
 
         except (KeyError, IOError, OSError):
@@ -261,16 +261,19 @@ class NetworkServiceTestCase(base.Scenario):
         except StopIteration:
             raise IncorrectConfig("No implementation for %s", expected_name)
 
-    def load_vnf_models(self, context_cfg):
+    def load_vnf_models(self, scenario_cfg, context_cfg):
         """ Create VNF objects based on YAML descriptors
 
+        :param scenario_cfg:
+        :type scenario_cfg:
         :param context_cfg:
         :return:
         """
         vnfs = []
-        for node in context_cfg["nodes"]:
-            LOG.debug(context_cfg["nodes"][node])
-            with open(context_cfg["nodes"][node]["VNF model"]) as stream:
+        for node in context_cfg["nodes"].values():
+            LOG.debug(node)
+            with open_relative_file(node["VNF model"],
+                                    scenario_cfg['task_path']) as stream:
                 vnf_model = stream.read()
             vnfd = vnfdgen.generate_vnfd(vnf_model, context_cfg["nodes"][node])
             vnf_impl = self.get_vnf_impl(vnfd["vnfd:vnfd-catalog"]["vnfd"][0])
@@ -289,7 +292,7 @@ class NetworkServiceTestCase(base.Scenario):
         # 1. Verify if infrastructure mapping can meet topology
         self.map_topology_to_infrastructure(self.context_cfg, self.topology)
         # 1a. Load VNF models
-        self.vnfs = self.load_vnf_models(self.context_cfg)
+        self.vnfs = self.load_vnf_models(self.scenario_cfg, self.context_cfg)
         # 1b. Fill traffic profile with information from topology
         self.traffic_profile = self._fill_traffic_profile(self.scenario_cfg,
                                                           self.context_cfg)

@@ -351,7 +351,8 @@ class TestNetworkServiceTestCase(unittest.TestCase):
         vnf = mock.Mock(autospec=GenericVNF)
         self.s.get_vnf_impl = mock.Mock(return_value=vnf)
 
-        self.assertIsNotNone(self.s.load_vnf_models(self.context_cfg))
+        self.assertIsNotNone(
+            self.s.load_vnf_models(self.scenario_cfg, self.context_cfg))
 
     def test_map_topology_to_infrastructure(self):
         with mock.patch("yardstick.ssh.SSH") as ssh:
