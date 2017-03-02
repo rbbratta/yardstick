@@ -87,7 +87,7 @@ class PingTrafficGen(GenericTrafficGen):
                    for intf in self.vnfd["vdu"][0]["external-interface"]}
 
         commands = \
-            ['"{0}" --force -b "{1}" "{2}"'.format(dpdk_nic_bind, value, key)
+            ['sudo "{0}" --force -b "{1}" "{2}"'.format(dpdk_nic_bind, value, key)
              for key, value in drivers.items()]
         for command in commands:
             connection.execute(command)
@@ -132,8 +132,8 @@ class PingTrafficGen(GenericTrafficGen):
         mgmt_interface = self.vnfd["mgmt-interface"]
         ssh_port = mgmt_interface.get("ssh_port", ssh.DEFAULT_PORT)
         self.connection = ssh.SSH(mgmt_interface["user"], mgmt_interface["ip"],
-                                  password=mgmt_interface["password"],
-                                  port=ssh_port)
+                                  port=ssh_port,
+                                  **self.get_ssh_auth_method(mgmt_interface))
         self.connection.wait()
         external_interface = self.vnfd["vdu"][0]["external-interface"]
         virtual_interface = external_interface[0]["virtual-interface"]
@@ -143,14 +143,14 @@ class PingTrafficGen(GenericTrafficGen):
             virtual_interface["local_iface_name"].split('/')[0]
         packet_size = traffic_profile.params["traffic_profile"]["frame_size"]
 
-        run_cmd = []
+        run_cmd = [
+            "sudo ip addr flush %s" % local_if_name,
+            "sudo ip addr add %s/24 dev %s" % (local_ip, local_if_name),
+            "sudo ip link set %s up" % local_if_name
+        ]
 
-        run_cmd.append("ip addr flush %s" % local_if_name)
-        run_cmd.append("ip addr add %s/24 dev %s" % (local_ip, local_if_name))
-        run_cmd.append("ip link set %s up" % local_if_name)
-
-        for cmd in run_cmd:
-            self.connection.execute(cmd)
+        # run all the ip commands at once to avoid issues
+        self.connection.execute(" ; ".join(run_cmd))
 
         ping_cmd = ("ping -s %s %s" % (packet_size, target_ip))
         self.connection.run(ping_cmd, stdout=filewrapper,
