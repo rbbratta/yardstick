@@ -57,8 +57,10 @@ context:
       placement: "pgrp1"
 
   networks:
-    test:
+    xe0:
       cidr: '10.0.1.0/24'
       external_network: "yardstick-public"
-    test_2:
+      vld_id: public
+    xe1:
       cidr: '10.0.2.0/24'
+      vld_id: private

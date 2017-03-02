@@ -263,6 +263,11 @@ class HeatContext(Context):
                         "network_id": self.stack.outputs[
                             port["stack_name"] + "-network_id"],
                         "network_name": network_name,
+                        # to match vnf_generic
+                        "local_mac": self.stack.outputs[
+                            port["stack_name"] + "-mac_address"],
+                        "local_ip": self.stack.outputs[port["stack_name"]],
+                        "vld_id": self.networks[network_name].vld_id,
                     }
 
             if server.floating_ip:
