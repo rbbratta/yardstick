@@ -73,8 +73,8 @@ class PingTrafficGen(GenericTrafficGen):
         LOG.debug("Connecting to %s", mgmt_interface["ip"])
 
         self.connection = ssh.SSH(mgmt_interface["user"], mgmt_interface["ip"],
-                                  password=mgmt_interface["password"],
-                                  port=ssh_port)
+                                  port=ssh_port,
+                                  **self.get_ssh_auth_method(mgmt_interface))
         self.connection.wait()
 
     def _bind_device_kernel(self, connection):
