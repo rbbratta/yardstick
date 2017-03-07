@@ -59,7 +59,7 @@ class HeatObject(object):
         """returns stack state as a string"""
         heat = self._get_heat_client()
         stack = heat.stacks.get(self.uuid)
-        return getattr(stack, 'stack_status')
+        return stack.stack_status
 
 
 class HeatStack(HeatObject):
@@ -502,7 +502,7 @@ name (i.e. %s).\
                 status = self.status()
 
             end_time = time.time()
-            outputs = getattr(heat.stacks.get(self.uuid), 'outputs')
+            outputs = heat.stacks.get(self.uuid).outputs
             log.info("Created stack '%s' in %d secs",
                      self.name, end_time - start_time)
 
