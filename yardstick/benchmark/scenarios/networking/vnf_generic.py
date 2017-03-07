@@ -19,6 +19,7 @@ import logging
 import errno
 import os
 
+import re
 import yaml
 
 from yardstick.benchmark.scenarios import base
@@ -227,7 +228,7 @@ class NetworkServiceTestCase(base.Scenario):
 
             cmd = "PATH=$PATH:/sbin:/usr/sbin ip addr show"
             with SshManager(node_dict) as conn:
-                exit_status = conn.execute(cmd)[0]
+                exit_status, stdout = conn.execute(cmd)[0:1]
                 if exit_status != 0:
                     raise IncorrectSetup("Node's %s lacks ip tool." % node)
 
@@ -243,6 +244,16 @@ class NetworkServiceTestCase(base.Scenario):
         # 3. Use topology file to find connections & resolve dest address
         self._resolve_topology(context_cfg, topology)
         self._update_context_with_topology(context_cfg, topology)
+
+    DEVICE_RE = re.compile("/(?P<vpci>[^/]+)/net/(?P<device>[^/]+)/device;.*/(?P<driver>\S+)$", re.M)
+
+    @classmethod
+    def parse_device_driver(cls, stdout):
+        SAMPLE = """\
+/sys/devices/pci0000:00/0000:00:1c.3/0000:0b:00.0/net/enp11s0/device;../../../../bus/pci/drivers/igb
+/sys/devices/pci0000:00/0000:00:19.0/net/lan/device;../../../bus/pci/drivers/e1000e
+"""
+        return [m.groupdict() for m in cls.DEVICE_RE.finditer(stdout)]
 
     @classmethod
     def get_vnf_impl(cls, vnf_model):
