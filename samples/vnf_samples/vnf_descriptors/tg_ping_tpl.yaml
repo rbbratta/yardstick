@@ -56,6 +56,7 @@ vnfd:vnfd-catalog:
                     dst_ip: '{{ interfaces.xe0.dst_ip }}' # Value filled by vnfdgen
                     local_mac: '{{ interfaces.xe0.local_mac }}' # Value filled by vnfdgen
                     dst_mac: '{{ interfaces.xe0.dst_mac }}' # Value filled by vnfdgen
+                    # This will change
                     bandwidth: 10 Gbps
                 vnfd-connection-point-ref: xe0
             -   name: xe1

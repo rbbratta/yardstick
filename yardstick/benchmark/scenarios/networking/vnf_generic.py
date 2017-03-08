@@ -168,6 +168,7 @@ class NetworkServiceTestCase(base.Scenario):
                      if vnf_id == vnfd["member-vnf-index"]), None)
 
     def _resolve_topology(self, context_cfg, topology):
+        # TODO: how to handle multipoint links
         for vld in topology["vld"]:
             if len(vld["vnfd-connection-point-ref"]) > 2:
                 raise IncorrectConfig("Topology file corrupted, "
