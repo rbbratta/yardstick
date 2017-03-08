@@ -169,6 +169,7 @@ class NetworkServiceTestCase(base.Scenario):
                      if vnf_id == vnfd["member-vnf-index"]), None)
 
     def _resolve_topology(self, context_cfg, topology):
+        # TODO: how to handle multipoint links
         for vld in topology["vld"]:
             if len(vld["vnfd-connection-point-ref"]) > 2:
                 raise IncorrectConfig("Topology file corrupted, "
@@ -240,6 +241,7 @@ class NetworkServiceTestCase(base.Scenario):
                 #         raise IncorrectConfig("Require interface fields '%s' "
                 #                               "not found, topology file "
                 #                               "corrupted" % ', '.join(missing))
+        # TODO: dpdk_port_num is PCI BUS ID ordering, lowest first
 
         # 3. Use topology file to find connections & resolve dest address
         self._resolve_topology(context_cfg, topology)
