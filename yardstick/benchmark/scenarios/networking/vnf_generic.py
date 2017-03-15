@@ -20,6 +20,9 @@ import errno
 import os
 
 import re
+from operator import itemgetter
+from collections import defaultdict
+
 import yaml
 
 from yardstick.benchmark.scenarios import base
@@ -217,6 +220,26 @@ class NetworkServiceTestCase(base.Scenario):
             list_idx = self._find_list_index_from_vnf_idx(topology, vnf_idx)
             nodes[node].update(topology["constituent-vnfd"][list_idx])
 
+    @staticmethod
+    def _sort_dpdk_port_num(netdevs):
+        # dpdk_port_num is PCI BUS ID ordering, lowest first
+        s = sorted(netdevs.values(), key=itemgetter('pci_bus_id'))
+        for dpdk_port_num, netdev in enumerate(s, 1):
+            netdev['dpdk_port_num'] = dpdk_port_num
+
+    @classmethod
+    def _probe_missing_values(cls, netdevs, network, missing):
+        mac = network['local_mac']
+        for netdev in netdevs.values():
+            if netdev['address'].lower() == mac.lower():
+                network['driver'] = netdev['driver']
+                network['vpci'] = netdev['pci_bus_id']
+                network['dpdk_port_num'] = netdev['dpdk_port_num']
+                network['ifindex'] = netdev['ifindex']
+
+    TOPOLOGY_REQUIRED_KEYS = frozenset({
+        "vpci", "local_ip", "netmask", "local_mac", "driver", "dpdk_port_num"})
+
     def map_topology_to_infrastructure(self, context_cfg, topology):
         """ This method should verify if the available resources defined in pod.yaml
         match the topology.yaml file.
@@ -229,33 +252,67 @@ class NetworkServiceTestCase(base.Scenario):
 
             cmd = "PATH=$PATH:/sbin:/usr/sbin ip addr show"
             with SshManager(node_dict) as conn:
-                exit_status, stdout = conn.execute(cmd)[0:1]
+                exit_status = conn.execute(cmd)[0]
                 if exit_status != 0:
                     raise IncorrectSetup("Node's %s lacks ip tool." % node)
+                exit_status, stdout, _ = conn.execute(
+                    self.FIND_NETDEVICE_STRING)
+                if exit_status != 0:
+                    raise IncorrectSetup("Cannot sysfs netdevs info" % node)
+                netdevs = node_dict['netdevs'] = self.parse_netdev_info(
+                    stdout)
+                self._sort_dpdk_port_num(netdevs)
 
-                # for network in node_dict["interfaces"].values():
-                #     keys = {"vpci", "local_ip", "netmask",
-                #             "local_mac", "driver", "dpdk_port_num"}
-                #     missing = keys.difference(network)
-                #     if missing:
-                #         raise IncorrectConfig("Require interface fields '%s' "
-                #                               "not found, topology file "
-                #                               "corrupted" % ', '.join(missing))
-        # TODO: dpdk_port_num is PCI BUS ID ordering, lowest first
+                for network in node_dict["interfaces"].values():
+                    missing = self.TOPOLOGY_REQUIRED_KEYS.difference(network)
+                    if missing:
+                        try:
+                            self._probe_missing_values(netdevs, network,
+                                                       missing)
+                        except KeyError:
+                            pass
+                        else:
+                            missing = self.TOPOLOGY_REQUIRED_KEYS.difference(
+                                network)
+                        if missing:
+                            raise IncorrectConfig(
+                                "Require interface fields '%s' "
+                                "not found, topology file "
+                                "corrupted" % ', '.join(missing))
 
         # 3. Use topology file to find connections & resolve dest address
         self._resolve_topology(context_cfg, topology)
         self._update_context_with_topology(context_cfg, topology)
 
-    DEVICE_RE = re.compile("/(?P<vpci>[^/]+)/net/(?P<device>[^/]+)/device;.*/(?P<driver>\S+)$", re.M)
+    FIND_NETDEVICE_STRING = r"""find /sys/devices/pci* -type d -name net -exec sh -c '{ grep -sH ^ \
+$1/ifindex $1/address $1/operstate $1/device/vendor $1/device/device \
+$1/device/subsystem_vendor $1/device/subsystem_device ; \
+printf "%s/driver:" $1 ; basename $(readlink -s $1/device/driver); } \
+' sh  \{\}/* \;
+"""
+    BASE_ADAPTER_RE = re.compile(
+        '^/sys/devices/(.*)/net/([^/]*)/([^:]*):(.*)$', re.M)
 
     @classmethod
-    def parse_device_driver(cls, stdout):
-        SAMPLE = """\
-/sys/devices/pci0000:00/0000:00:1c.3/0000:0b:00.0/net/enp11s0/device;../../../../bus/pci/drivers/igb
-/sys/devices/pci0000:00/0000:00:19.0/net/lan/device;../../../bus/pci/drivers/e1000e
-"""
-        return [m.groupdict() for m in cls.DEVICE_RE.finditer(stdout)]
+    def parse_netdev_info(cls, stdout):
+        network_devices = defaultdict(dict)
+        matches = cls.BASE_ADAPTER_RE.findall(stdout)
+        for bus_path, interface_name, name, value in matches:
+            dirname, bus_id = os.path.split(bus_path)
+            if 'virtio' in bus_id:
+                # for some stupid reason VMs include virtio1/
+                # in PCI device path
+                bus_id = os.path.basename(dirname)
+            # remove extra 'device/' from 'device/vendor,
+            # device/subsystem_vendor', etc.
+            if 'device/' in name:
+                name = name.split('/')[1]
+            network_devices[interface_name][name] = value
+            network_devices[interface_name][
+                'interface_name'] = interface_name
+            network_devices[interface_name]['pci_bus_id'] = bus_id
+        # convert back to regular dict
+        return dict(network_devices)
 
     @classmethod
     def get_vnf_impl(cls, vnf_model):
