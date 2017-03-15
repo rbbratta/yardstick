@@ -231,6 +231,14 @@ name (i.e. %s).\
             'description': 'subnet %s ID' % name,
             'value': {'get_resource': name}
         }
+        self._template['outputs'][name + "-cidr"] = {
+            'description': 'subnet %s cidr' % name,
+            'value': {'get_attr': [name, 'cidr']}
+        }
+        self._template['outputs'][name + "-gateway_ip"] = {
+            'description': 'subnet %s gateway_ip' % name,
+            'value': {'get_attr': [name, 'gateway_ip']}
+        }
 
     def add_router(self, name, ext_gw_net, subnet_name):
         """add to the template a Neutron Router and interface"""
@@ -284,6 +292,10 @@ name (i.e. %s).\
         self._template['outputs'][name] = {
             'description': 'Address for interface %s' % name,
             'value': {'get_attr': [name, 'fixed_ips', 0, 'ip_address']}
+        }
+        self._template['outputs'][name + "-subnet_id"] = {
+            'description': 'Address for interface %s' % name,
+            'value': {'get_attr': [name, 'fixed_ips', 0, 'subnet_id']}
         }
         self._template['outputs'][name + "-mac_address"] = {
             'description': 'MAC Address for interface %s' % name,

@@ -16,6 +16,7 @@ import os
 import uuid
 from collections import OrderedDict
 
+import ipaddress
 import paramiko
 import pkg_resources
 
@@ -259,27 +260,36 @@ class HeatContext(Context):
                 server.private_ip = self.stack.outputs[port["stack_name"]]
                 server.interfaces = {}
                 for network_name, port in server.ports.items():
-                    server.interfaces[network_name] = {
-                        "private_ip": self.stack.outputs[port["stack_name"]],
-                        "mac_address": self.stack.outputs[
-                            port["stack_name"] + "-mac_address"],
-                        "device_id": self.stack.outputs[
-                            port["stack_name"] + "-device_id"],
-                        "network_id": self.stack.outputs[
-                            port["stack_name"] + "-network_id"],
-                        "network_name": network_name,
-                        # to match vnf_generic
-                        "local_mac": self.stack.outputs[
-                            port["stack_name"] + "-mac_address"],
-                        "local_ip": self.stack.outputs[port["stack_name"]],
-                        "vld_id": self.networks[network_name].vld_id,
-                    }
+                    self.make_interface_dict(network_name, port['stack_name'],
+                                             server,
+                                             self.stack.outputs)
 
             if server.floating_ip:
                 server.public_ip = \
                     self.stack.outputs[server.floating_ip["stack_name"]]
 
         print("Context '%s' deployed" % self.name)
+
+    def make_interface_dict(self, network_name, stack_name, server, outputs):
+        server.interfaces[network_name] = {
+            "private_ip": outputs[stack_name],
+            "subnet_id": outputs[stack_name + "-subnet_id"],
+            "subnet_cidr": outputs[
+                "{}-{}-subnet-cidr".format(self.name, network_name)],
+            "netmask": str(ipaddress.ip_network(
+                outputs["{}-{}-subnet-cidr".format(self.name,
+                                                   network_name)]).netmask),
+            "gateway_ip": outputs[
+                "{}-{}-subnet-gateway_ip".format(self.name, network_name)],
+            "mac_address": outputs[stack_name + "-mac_address"],
+            "device_id": outputs[stack_name + "-device_id"],
+            "network_id": outputs[stack_name + "-network_id"],
+            "network_name": network_name,
+            # to match vnf_generic
+            "local_mac": outputs[stack_name + "-mac_address"],
+            "local_ip": outputs[stack_name],
+            "vld_id": self.networks[network_name].vld_id,
+        }
 
     def undeploy(self):
         """undeploys stack from cloud"""
