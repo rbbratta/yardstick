@@ -1,0 +1,4 @@
+---
+#DPDK_DOWNLOAD: "http://dpdk.org/browse/dpdk/snapshot/dpdk-16.04.zip"
+DPDK_VERSION: 16.04
+DPDK_DOWNLOAD: "{{ nsb_mirror_url }}/dpdk-{{ DPDK_VERSION }}.zip"

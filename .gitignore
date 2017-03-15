@@ -8,7 +8,6 @@
 *.BASE.*
 *.LOCAL.*
 *.REMOTE.*
-*.yml
 *.egg
 *.egg-info
 build

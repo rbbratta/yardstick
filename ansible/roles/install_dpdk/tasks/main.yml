@@ -1,0 +1,84 @@
+# Copyright (c) 2017 Intel Corporation.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+---
+
+- get_url:
+    url: "{{ DPDK_DOWNLOAD }}"
+    dest: "{{ NSB_INSTALL_DIR }}/{{ DPDK_DOWNLOAD|basename }}"
+    checksum: "sha256:57712cf5aa88128a142f0a155e15b7955b8456df40ccac764ad2c12f6e292656"
+
+- unarchive:
+    src: "{{ NSB_INSTALL_DIR }}/{{ DPDK_DOWNLOAD|basename }}"
+    dest: "{{ NSB_INSTALL_DIR }}"
+    copy: no
+
+- patch: src="{{ item }}" basedir="{{ dpdk_path }}" strip=0
+  with_fileglob:
+    - "{{ local_nsb_path }}/patches/dpdk_custom_patch/rte_pipeline.patch"
+
+- patch: src="{{ item }}" basedir="{{ dpdk_path }}" strip=1
+  with_fileglob:
+    - "{{ local_nsb_path }}/patches/dpdk_custom_patch/0*.patch"
+
+- my_make:
+    chdir: "{{ dpdk_path }}"
+    target: config
+    params:
+      T: "{{ dpdk_make_arch }}"
+      O: "{{ dpdk_make_arch }}"
+    extra_args: "-j {{ ansible_processor_vcpus }}"
+
+- my_make:
+    chdir: "{{ dpdk_path }}/{{ dpdk_make_arch}}"
+    extra_args: "-j {{ ansible_processor_vcpus }}"
+
+- modprobe: name=uio state=present
+
+- file: path="{{ dpdk_module_dir}}" state=directory
+
+- command: cp -r "{{ dpdk_path }}/{{ dpdk_make_arch }}/kmod/igb_uio.ko"  "{{ dpdk_module_dir }}"
+
+- command: "depmod -a"
+
+- modprobe: name=igb_uio state=present
+
+- copy: content='uio\nigb_uio\n' dest=/etc/modules-load.d/nsb.conf
+
+- command: grep Hugepagesize /proc/meminfo
+  register: meminfo_hugepagesize
+
+- set_fact:
+    hugepgsz: "{{ meminfo_hugepagesize.stdout.split(':')[1].replace(' ', '') }}"
+
+- set_fact:
+    dpdk_pages: "{{ 16384 if hugepgsz == '2048kB' else 16 }}"
+
+- sysctl:
+    name: vm.nr_hugepages
+    state: present
+    value: "{{ dpdk_pages }}"
+
+- shell: echo "{{ dpdk_pages }}" > /sys/kernel/mm/hugepages/hugepages-{{ hugepgsz }}/nr_hugepages
+
+- service: name=procps state=started
+
+- file: path="{{ hugetable_mount }}" state=directory
+
+- mount:
+    name: "{{ hugetable_mount }}"
+    src: nodev
+    fstype: hugetblfs
+    state: mounted
+
+- command: cp -fr "{{ NSB_INSTALL_DIR }}/dpdk-{{ DPDK_VERSION }}/tools/dpdk_nic_bind.py" "{{ INSTALL_BIN_PATH }}/"
