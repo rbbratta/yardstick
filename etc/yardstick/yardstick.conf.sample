@@ -28,5 +28,5 @@ username = root
 password = root
 
 [nsb]
-trex_path=/opt/nsb_bin/trex/scripts
-bin_path=/opt/nsb_bin
+trex_path=/tmp/nsb_bin/trex/scripts
+bin_path=/tmp/nsb_bin

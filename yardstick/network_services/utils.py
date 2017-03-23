@@ -21,7 +21,7 @@ from oslo_config import cfg
 from oslo_config.cfg import NoSuchOptError
 from oslo_utils import encodeutils
 
-NSB_ROOT = "/opt/nsb_bin"
+NSB_ROOT = "/tmp/nsb_bin"
 
 CONF = cfg.CONF
 OPTS = [
