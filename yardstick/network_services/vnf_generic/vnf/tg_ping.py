@@ -77,23 +77,25 @@ class PingTrafficGen(GenericTrafficGen):
             provision_tool(self.connection,
                            os.path.join(self.bin_path, "dpdk_nic_bind.py"))
 
-        for index, intf in enumerate(self.vnfd["vdu"][0]["external-interface"]):
-            vpci = intf["virtual-interface"]["vpci"]
-            driver = intf["virtual-interface"]["driver"]
+        for intf in self.vnfd["vdu"][0]["external-interface"]:
+            vi = intf["virtual-interface"]
+            vpci = vi["vpci"]
+            driver = vi["driver"]
             net = "find /sys/class/net -lname '*{}*' -printf '%f'".format(vpci)
             status, out = connection.execute(net)[:2]
             if status:
-                command = "%s --force -b %s %s" % dpdk_nic_bind, driver, vpci
+                command = 'sudo "{0}" --force -b "{1}" "{2}'.format(
+                    dpdk_nic_bind, driver, vpci)
                 connection.execute(command)
-                net = "find /sys/class/net -lname '*{}*' -printf '%f'".format(vpci)
+                net = "find /sys/class/net -lname '*{}*' -printf '%f'".format(
+                    vpci)
                 out = connection.execute(net)[1]
 
-            ifname = out.split('/')[-1].strip('\n')
-            self.vnfd["vdu"][0]["external-interface"][index][
-                "virtual-interface"]["local_iface_name"] = ifname
+            ifname = out.split('/')[-1].strip()
+            vi["local_iface_name"] = ifname
 
     def scale(self, flavor=""):
-        ''' scale vnfbased on flavor input '''
+        """ scale vnfbased on flavor input """
         super(PingTrafficGen, self).scale(flavor)
 
     def instantiate(self, scenario_cfg, context_cfg):
@@ -132,14 +134,14 @@ class PingTrafficGen(GenericTrafficGen):
             virtual_interface["local_iface_name"].split('/')[0]
         packet_size = traffic_profile.params["traffic_profile"]["frame_size"]
 
-        run_cmd = []
+        run_cmd = [
+            "sudo ip addr flush %s" % local_if_name,
+            "sudo ip addr add %s/24 dev %s" % (local_ip, local_if_name),
+            "sudo ip link set %s up" % local_if_name
+        ]
 
-        run_cmd.append("ip addr flush %s" % local_if_name)
-        run_cmd.append("ip addr add %s/24 dev %s" % (local_ip, local_if_name))
-        run_cmd.append("ip link set %s up" % local_if_name)
-
-        for cmd in run_cmd:
-            self.connection.execute(cmd)
+        # run all the ip commands at once to avoid issues
+        self.connection.execute(" ; ".join(run_cmd))
 
         ping_cmd = ("ping -s %s %s" % (packet_size, target_ip))
         self.connection.run(ping_cmd, stdout=filewrapper,
