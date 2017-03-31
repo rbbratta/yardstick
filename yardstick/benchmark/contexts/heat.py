@@ -141,9 +141,12 @@ class HeatContext(Context):
         template.add_keypair(self.keypair_name, self.key_uuid)
         template.add_security_group(self.secgroup_name)
 
-        for network in self.networks.values():
-            template.add_network(network.stack_name)
-            template.add_subnet(network.subnet_stack_name, network.stack_name,
+        for network in self.networks:
+            template.add_network(network.stack_name,
+                                 network.physical_network,
+                                 network.provider)
+            template.add_subnet(network.subnet_stack_name,
+                                network.stack_name,
                                 network.subnet_cidr)
 
             if network.router:
