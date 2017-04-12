@@ -13,23 +13,32 @@
 # limitations under the License.
 """ vPE (Power Edge router) VNF model definitions based on IETS Spec """
 
-from __future__ import absolute_import
-from __future__ import print_function
+from __future__ import absolute_import, print_function
+
+import ipaddress
+import itertools
+import logging
+import os
+import re
 import tempfile
 import time
-import os
-import logging
-import re
-from multiprocessing import Queue
 import multiprocessing
-import ipaddress
+from multiprocessing import Queue
+
 import six
+from six.moves import configparser
+
 
 from yardstick import ssh
-from yardstick.network_services.vnf_generic.vnf.base import GenericVNF
-from yardstick.network_services.utils import provision_tool
-from yardstick.network_services.vnf_generic.vnf.base import QueueFileWrapper
 from yardstick.network_services.nfvi.resource import ResourceProfile
+from yardstick.network_services.utils import provision_tool
+from yardstick.network_services.vnf_generic.vnf.base import GenericVNF, \
+    QueueFileWrapper
+
+if six.PY2:
+    ConfigParser = configparser.SafeConfigParser
+else:
+    ConfigParser = configparser.ConfigParser
 
 LOG = logging.getLogger(__name__)
 VPE_PIPELINE_COMMAND = \
@@ -93,7 +102,7 @@ class ConfigCreate(object):
         return pktq
 
     def vpe_upstream(self, vnf_cfg, index):
-        parser = ConfigParser.SafeConfigParser()
+        parser = ConfigParser()
         parser.read(os.path.join(vnf_cfg, 'vpe_upstream'))
         for pipeline in parser.sections():
             for k, v in parser.items(pipeline):
@@ -122,7 +131,7 @@ class ConfigCreate(object):
         return parser
 
     def vpe_downstream(self, vnf_cfg, index):
-        parser = ConfigParser.SafeConfigParser()
+        parser = ConfigParser()
         parser.read(os.path.join(vnf_cfg, 'vpe_downstream'))
         for pipeline in parser.sections():
             for k, v in parser.items(pipeline):
@@ -155,19 +164,18 @@ class ConfigCreate(object):
         return parser
 
     def create_vpe_config(self, vnf_cfg):
-        Config = ConfigParser.ConfigParser()
+        Config = ConfigParser()
         vpe_cfg = os.path.join(vnf_cfg, "vpe_config")
-        cfgfile = open(vpe_cfg, 'w')
-        Config = self.vpe_initialize(Config)
-        Config = self.vpe_rxq(Config)
-        Config.write(cfgfile)
-        for index in range(0, len(self.priv_ports)):
-            Config = self.vpe_upstream(vnf_cfg, index)
+        with open(vpe_cfg, 'w') as cfgfile:
+            Config = self.vpe_initialize(Config)
+            Config = self.vpe_rxq(Config)
             Config.write(cfgfile)
-            Config = self.vpe_downstream(vnf_cfg, index)
-            Config = self.vpe_tmq(Config, index)
-            Config.write(cfgfile)
-        cfgfile.close()
+            for index in range(0, len(self.priv_ports)):
+                config = self.vpe_upstream(vnf_cfg, index)
+                config.write(cfgfile)
+                config = self.vpe_downstream(vnf_cfg, index)
+                config = self.vpe_tmq(config, index)
+                config.write(cfgfile)
 
     def get_firewall_script(self, pipeline, ip):
         fwl = ""
