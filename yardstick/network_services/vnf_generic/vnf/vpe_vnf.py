@@ -38,6 +38,227 @@ CORES = ['0', '1', '2', '3', '4', '5']
 WAIT_TIME = 20
 
 
+class ConfigCreate(object):
+    def __init__(self, priv_ports, pub_ports, socket):
+        super(ConfigCreate, self).__init__()
+        self.sw_q = -1
+        self.sink_q = -1
+        self.n_pipeline = 1
+        self.priv_ports = priv_ports
+        self.pub_ports = pub_ports
+        self.pipeline_per_port = 9
+        self.socket = socket
+
+    def vpe_initialize(self, Config):
+        Config.add_section('EAL')
+        Config.set('EAL', 'log_level', 0)
+
+        Config.add_section('PIPELINE0')
+        Config.set('PIPELINE0', 'type', 'MASTER')
+        Config.set('PIPELINE0', 'core', 'S%sC0' % self.socket)
+
+        Config.add_section('MEMPOOL0')
+        Config.set('MEMPOOL0', 'pool_size', '256K')
+
+        Config.add_section('MEMPOOL1')
+        Config.set('MEMPOOL1', 'pool_size', '2M')
+        return Config
+
+    def vpe_rxq(self, Config):
+        for ports in self.pub_ports:
+            Config.add_section('RXQ%s.0' % str(ports))
+            Config.set('RXQ%s.0' % str(ports), 'mempool', 'MEMPOOL1')
+
+        return Config
+
+    def vpe_tmq(self, Config, index):
+        tm_q = 'TM%s' % str(index)
+        Config.add_section(tm_q)
+        Config.set(tm_q, 'burst_read', '24')
+        Config.set(tm_q, 'burst_write', '32')
+        Config.set(tm_q, 'cfg', '/tmp/full_tm_profile_10G.cfg')
+
+        return Config
+
+    def get_sink_swq(self, parser, pipeline, k, index):
+        global sw_q, sink_q
+        sink = ""
+        pktq = parser.get(pipeline, k)
+        if "SINK" in pktq:
+            self.sink_q += 1
+            sink = " SINK%s" % str(self.sink_q)
+        if "TM" in pktq:
+            sink = " TM%s" % str(index)
+        pktq = "SWQ%s" % str(self.sw_q) + sink
+        return pktq
+
+    def vpe_upstream(self, vnf_cfg, index):
+        parser = ConfigParser.SafeConfigParser()
+        parser.read(os.path.join(vnf_cfg, 'vpe_upstream'))
+        for pipeline in parser.sections():
+            for k, v in parser.items(pipeline):
+                if k == "pktq_in":
+                    if "RXQ" in v:
+                        parser.set(pipeline, k,
+                                   "RXQ%s.0" % self.priv_ports[index])
+                    else:
+                        parser.set(pipeline, k,
+                                   self.get_sink_swq(parser, pipeline, k,
+                                                     index))
+                if k == "pktq_out":
+                    if "TXQ" in v:
+                        parser.set(pipeline, k,
+                                   "TXQ%s.0" % self.pub_ports[index])
+                    else:
+                        self.sw_q += 1
+                        parser.set(pipeline, k,
+                                   self.get_sink_swq(parser, pipeline, k,
+                                                     index))
+            new_pipeline = 'PIPELINE%s' % self.n_pipeline
+            if new_pipeline != pipeline:
+                parser._sections[new_pipeline] = parser._sections[pipeline]
+                parser._sections.pop(pipeline)
+            self.n_pipeline += 1
+        return parser
+
+    def vpe_downstream(self, vnf_cfg, index):
+        parser = ConfigParser.SafeConfigParser()
+        parser.read(os.path.join(vnf_cfg, 'vpe_downstream'))
+        for pipeline in parser.sections():
+            for k, v in parser.items(pipeline):
+                if k == "pktq_in":
+                    if "RXQ" in v:
+                        rxq = "RXQ%s.0" % self.pub_ports[index]
+                        if "TM" in v:
+                            rxq = rxq + " TM%s" % str(index)
+                        parser.set(pipeline, k, rxq)
+                    else:
+                        parser.set(pipeline, k,
+                                   self.get_sink_swq(parser, pipeline, k,
+                                                     index))
+                if k == "pktq_out":
+                    if "TXQ" in v:
+                        txq = "TXQ%s.0" % self.priv_ports[index]
+                        if "TM" in v:
+                            txq = txq + " TM%s" % str(index)
+                        parser.set(pipeline, k, txq)
+                    else:
+                        self.sw_q += 1
+                        parser.set(pipeline, k,
+                                   self.get_sink_swq(parser, pipeline, k,
+                                                     index))
+            new_pipeline = 'PIPELINE%s' % self.n_pipeline
+            if new_pipeline != pipeline:
+                parser._sections[new_pipeline] = parser._sections[pipeline]
+                parser._sections.pop(pipeline)
+            self.n_pipeline += 1
+        return parser
+
+    def create_vpe_config(self, vnf_cfg):
+        Config = ConfigParser.ConfigParser()
+        vpe_cfg = os.path.join(vnf_cfg, "vpe_config")
+        cfgfile = open(vpe_cfg, 'w')
+        Config = self.vpe_initialize(Config)
+        Config = self.vpe_rxq(Config)
+        Config.write(cfgfile)
+        for index in range(0, len(self.priv_ports)):
+            Config = self.vpe_upstream(vnf_cfg, index)
+            Config.write(cfgfile)
+            Config = self.vpe_downstream(vnf_cfg, index)
+            Config = self.vpe_tmq(Config, index)
+            Config.write(cfgfile)
+        cfgfile.close()
+
+    def get_firewall_script(self, pipeline, ip):
+        fwl = ""
+        ip_addr = ip.split('.')
+        ip_addr[-1] = str(0)
+        for i in range(256):
+            ip_addr[-2] = str(i)
+            ip = '.'.join(ip_addr)
+            fwl += ('p {0} firewall add priority 1 ipv4  {1} 24 0.0.0.0 0 0'
+                    ' 65535 0 65535 6 0xFF port 0\n').format(pipeline, ip)
+        fwl += 'p {0} firewall add default 1\n\n'.format(pipeline)
+        return fwl
+
+    def get_flow_classfication_script(self, pipeline):
+        fwl = ""
+        fwl += 'p {0} flow add qinq 128 512 port 0 id 1\n'.format(pipeline)
+        fwl += 'p {0} flow add default 1\n\n'.format(pipeline)
+        return fwl
+
+    def get_flow_action(self, pipeline):
+        fwl = ""
+        fwl += 'p %s action flow bulk /tmp/action_bulk_512.txt\n\n' % pipeline
+        return fwl
+
+    def get_flow_action2(self, pipeline):
+        fwl = ""
+        fwl += 'p %s action flow bulk /tmp/action_bulk_512.txt\n' % pipeline
+        g = itertools.cycle('GYR')
+        for i in range(64):
+            fwl += 'p {0} action dscp {1} class {2} color {3}\n'.format(
+                pipeline, i, i % 4, next(g))
+        return fwl
+
+    def get_route_script(self, pipe_line_id, ip, mac_addr):
+        fwl = ''
+        ip_addr = ip.split('.')
+        ip_addr[-1] = str(0)
+        for i in range(0, 256, 8):
+            ip_addr[-2] = str(i)
+            ip = '.'.join(ip_addr)
+            fwl += ('p {0} route add {1} 21 port 0'
+                    ' ether {2} mpls 0:{3}\n').format(pipe_line_id, ip,
+                                                      mac_addr, i)
+        fwl += 'p {0} route add default 1\n\n'.format(pipe_line_id)
+        return fwl
+
+    def get_route_script2(self, pipe_line_id, ip, mac_addr):
+        fwl = ''
+        ip_addr = ip.split('.')
+        ip_addr[-1] = str(0)
+        mask = 24
+        for i in range(0, 256):
+            ip_addr[-2] = str(i)
+            ip = '.'.join(ip_addr)
+            fwl += ('p {0} route add {1} {2} port 0'
+                    ' ether {3} qinq 0 {4}\n').format(pipe_line_id, ip, mask,
+                                                      mac_addr, i)
+        fwl += 'p {0} route add default 1\n\n'.format(pipe_line_id)
+        return fwl
+
+    def generate_vpe_script(self, interfaces):
+        num_pipe = 1
+        fwl = ""
+        for idx in range(0, len(self.priv_ports)):
+            dst_port0_ip = \
+                interfaces[self.priv_ports[idx]]["virtual-interface"]["dst_ip"]
+            dst_port1_ip = \
+                interfaces[self.pub_ports[idx]]["virtual-interface"]["dst_ip"]
+            dst_port0_mac = \
+                interfaces[self.priv_ports[idx]]["virtual-interface"][
+                    "dst_mac"]
+            dst_port1_mac = \
+                interfaces[self.pub_ports[idx]]["virtual-interface"]["dst_mac"]
+
+            fwl += self.get_firewall_script(num_pipe, dst_port0_ip)
+            num_pipe += 1
+            fwl += self.get_flow_classfication_script(num_pipe)
+            num_pipe += 1
+            fwl += self.get_flow_action(num_pipe)
+            num_pipe += 1
+            fwl += self.get_flow_action2(num_pipe)
+            num_pipe += 1
+            fwl += self.get_route_script(num_pipe, dst_port1_ip, dst_port1_mac)
+            num_pipe += 1
+            fwl += self.get_route_script2(num_pipe, dst_port0_ip,
+                                          dst_port0_mac)
+            num_pipe += 4
+
+        return fwl
+
+
 class VpeApproxVnf(GenericVNF):
     """ This class handles vPE VNF model-driver definitions """
 
@@ -99,7 +320,8 @@ class VpeApproxVnf(GenericVNF):
                            os.path.join(self.bin_path, "nsb_setup.sh"))
         status = connection.execute("ls {} >/dev/null 2>&1".format(dpdk))[0]
         if status:
-            connection.execute("sudo bash %s dpdk >/dev/null 2>&1" % dpdk_setup)
+            connection.execute(
+                "sudo bash %s dpdk >/dev/null 2>&1" % dpdk_setup)
 
     def _get_cpu_sibling_list(self):
         cpu_topo = []

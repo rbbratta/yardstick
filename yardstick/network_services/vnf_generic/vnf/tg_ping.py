@@ -82,9 +82,9 @@ class PingTrafficGen(GenericTrafficGen):
             vpci = vi["vpci"]
             driver = vi["driver"]
             net = "find /sys/class/net -lname '*{}*' -printf '%f'".format(vpci)
-            status, out = connection.execute(net)[:2]
-            if status:
-                command = 'sudo "{0}" --force -b "{1}" "{2}'.format(
+            out = connection.execute(net)[:2][1]
+            if not out:
+                command = 'sudo "{0}" --force -b "{1}" "{2}"'.format(
                     dpdk_nic_bind, driver, vpci)
                 connection.execute(command)
                 net = "find /sys/class/net -lname '*{}*' -printf '%f'".format(

@@ -136,7 +136,8 @@ class TrexTrafficGen(GenericTrafficGen):
                            os.path.join(self.bin_path, "nsb_setup.sh"))
         status = connection.execute("ls {} >/dev/null 2>&1".format(dpdk))[0]
         if status:
-            connection.execute("sudo bash %s dpdk >/dev/null 2>&1" % dpdk_setup)
+            connection.execute(
+                "sudo bash %s dpdk >/dev/null 2>&1" % dpdk_setup)
 
     def scale(self, flavor=""):
         ''' scale vnfbased on flavor input '''
