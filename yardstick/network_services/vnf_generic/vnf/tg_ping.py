@@ -130,6 +130,7 @@ class PingTrafficGen(GenericTrafficGen):
         virtual_interface = external_interface[0]["virtual-interface"]
         target_ip = virtual_interface["dst_ip"].split('/')[0]
         local_ip = virtual_interface["local_ip"].split('/')[0]
+        LOG.debug("local_ip %s  target_ip %s", local_ip, target_ip)
         local_if_name = \
             virtual_interface["local_iface_name"].split('/')[0]
         packet_size = traffic_profile.params["traffic_profile"]["frame_size"]
@@ -141,9 +142,13 @@ class PingTrafficGen(GenericTrafficGen):
         ]
 
         # run all the ip commands at once to avoid issues
-        self.connection.execute(" ; ".join(run_cmd))
+        # self.connection.execute(" ; ".join(run_cmd))
+        run_cmd = " ; ".join(run_cmd)
+        LOG.debug(run_cmd)
+        self.connection.run(run_cmd)
 
         ping_cmd = ("ping -s %s %s" % (packet_size, target_ip))
+        LOG.debug(ping_cmd)
         self.connection.run(ping_cmd, stdout=filewrapper,
                             keep_stdin_open=True, pty=True)
 
