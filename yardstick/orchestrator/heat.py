@@ -197,7 +197,8 @@ name (i.e. %s).\
 
         log.debug("template object '%s' created", name)
 
-    def add_network(self, name, physical_network=None, provider=None):
+    def add_network(self, name, physical_network='physnet1', provider=None,
+                    vlan=None, port_security_enabled=True):
         """add to the template a Neutron Net"""
         log.debug("adding Neutron::Net '%s'", name)
         if provider is None:
@@ -206,16 +207,17 @@ name (i.e. %s).\
                 'properties': {'name': name}
             }
         else:
-            if physical_network is None:
-                physical_network = 'physnet1'
             self.resources[name] = {
                 'type': 'OS::Neutron::ProviderNet',
                 'properties': {
                     'name': name,
                     'network_type': 'vlan',
-                    'physical_network': physical_network
+                    'physical_network': physical_network,
+                    'port_security_enabled': port_security_enabled,
                 }
             }
+            if vlan:
+                self.resources[name]['properties']['segmentation_id'] = vlan
 
     def add_server_group(self, name, policies):     # pragma: no cover
         """add to the template a ServerGroup"""
@@ -227,8 +229,9 @@ name (i.e. %s).\
                            'policies': policies}
         }
 
-    def add_subnet(self, name, network, cidr):
-        """add to the template a Neutron Subnet"""
+    def add_subnet(self, name, network, cidr, enable_dhcp='true'):
+        """add to the template a Neutron Subnet
+        """
         log.debug("adding Neutron::Subnet '%s' in network '%s', cidr '%s'",
                   name, network, cidr)
         self.resources[name] = {
@@ -237,7 +240,8 @@ name (i.e. %s).\
             'properties': {
                 'name': name,
                 'cidr': cidr,
-                'network_id': {'get_resource': network}
+                'network_id': {'get_resource': network},
+                'enable_dhcp': enable_dhcp,
             }
         }
 

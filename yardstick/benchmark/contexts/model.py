@@ -104,8 +104,11 @@ class Network(Object):
         self.stack_name = context.name + "-" + self.name
         self.subnet_stack_name = self.stack_name + "-subnet"
         self.subnet_cidr = attrs.get('cidr', '10.0.1.0/24')
+        self.vlan = attrs.get('vlan', None)
+        self.port_security_enabled = attrs.get('port_security_enabled', True)
+        self.enable_dhcp = attrs.get('enable_dhcp', 'true')
         self.router = None
-        self.physical_network = attrs.get('physical_network', None)
+        self.physical_network = attrs.get('physical_network', 'physnet1')
         self.provider = attrs.get('provider', None)
 
         if "external_network" in attrs:
